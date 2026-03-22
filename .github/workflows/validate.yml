@@ -1,0 +1,44 @@
+name: SEC EDGAR Analysis Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pandas numpy matplotlib seaborn openpyxl scipy requests
+
+      - name: Validate data loads correctly
+        run: |
+          python -c "
+          from src.sec_data import load_financials, load_sector_summary
+          df = load_financials()
+          assert len(df) == 60, f'Expected 60 rows, got {len(df)}'
+          assert df['company'].nunique() == 12
+          assert df['year'].nunique() == 5
+          print(f'✓ {len(df)} rows loaded — 12 companies x 5 years')
+          "
+
+      - name: Validate leverage analysis
+        run: python src/leverage_analysis.py
+
+      - name: Check all companies have positive revenue
+        run: |
+          python -c "
+          from src.sec_data import load_financials
+          df = load_financials()
+          neg_rev = df[df['revenue_B'] <= 0]
+          assert len(neg_rev) == 0, f'Found {len(neg_rev)} rows with non-positive revenue'
+          print('✓ All revenue figures validated positive')
+          "
